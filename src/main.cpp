@@ -133,7 +133,8 @@ int main() {
 	  state << 0.0, 0.0, 0.0, v, cte, epsi;
 
 	  // calculate (t+1) state using kinematic model (apply delta)
-	  calc_state_t_plus_1(state, -delta, a, 0.1);
+	  calc_state_t_plus_1(state, delta, a, 0.1);
+	  std::cout << "Current state:" << state.transpose() << std::endl;
 
 	  std::cout << "solve" << std::endl;
 	  mpc.Solve(state, coeffs);

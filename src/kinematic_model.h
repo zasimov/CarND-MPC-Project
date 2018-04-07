@@ -6,6 +6,7 @@
  */
 
 #include "Eigen-3.3/Eigen/Dense"
+#include <cppad/cppad.hpp>
 
 /*
  * A dimension of state space: x, y, psi, v, cte, epsi
@@ -61,7 +62,7 @@ struct State {
  * Calculate state(t+1) using state(t);
  */
 template <typename D>
-void calc_state_t_plus_1(const State<D> &t,
+inline void calc_state_t_plus_1(const State<D> &t,
 			 const D delta,
 			 const D a,
 			 const D dt,
@@ -75,13 +76,13 @@ void calc_state_t_plus_1(const State<D> &t,
 
   const auto vlf = v / Lf;
   const auto vdt = v * dt;
-  const auto ddt = delta * dt;
+  const auto ddt = (-delta) * dt;
 
-  t_plus_1.x_ = x + cos(psi) * vdt;
-  t_plus_1.y_ = y + sin(psi) * vdt;
+  t_plus_1.x_ = x + CppAD::cos(psi) * vdt;
+  t_plus_1.y_ = y + CppAD::sin(psi) * vdt;
   t_plus_1.psi_ = psi + vlf * ddt;
   t_plus_1.v_ = v + a * dt;
-  t_plus_1.cte_ = cte + sin(epsi) * vdt;
+  t_plus_1.cte_ = cte + CppAD::sin(epsi) * vdt;
   t_plus_1.epsi_ = epsi + vlf * ddt;
 }
 
@@ -92,10 +93,10 @@ void calc_state_t_plus_1(Eigen::VectorXd &state_t,
 			 const double dt);
 
 /*
- * fpoly3 calculates a derivate of polynom of degree 3 in a point x
+ * dfpoly3 calculates a derivate of polynom of degree 3 in a point x
  */
 template <typename D>
-D fpoly3(const Eigen::VectorXd &coeffs, D x) {
+inline D dfpoly3(const Eigen::VectorXd &coeffs, D x) {
   return 3.0 * coeffs[3] + x * x + 2.0 * coeffs[2] * x + coeffs[1];
 }
 
@@ -103,8 +104,8 @@ D fpoly3(const Eigen::VectorXd &coeffs, D x) {
  * Evaluate a poly.
  */
 template <typename D>
-D poly3eval(const Eigen::VectorXd &coeffs, D x) {
-  assert(coeffs.size() == 3);
+inline D poly3eval(const Eigen::VectorXd &coeffs, D x) {
+  assert(coeffs.size() == 4);
   const D x2 = x * x;
   const D x3 = x2 * x;
   return coeffs[3] * x3 + coeffs[2] * x2 + coeffs[1] * x + coeffs[0];

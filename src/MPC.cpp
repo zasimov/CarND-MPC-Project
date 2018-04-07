@@ -58,23 +58,31 @@ class FG_eval {
   inline AD<double> cost(const ADvector &vars) {
     AD<double> cost = 0;
 
-    // The part of the cost based on the reference state.
-    for (int t = 0; t < kN; t++) {
-      cost += CppAD::pow(vars[CTE_VAR(t)], 2);
-      cost += CppAD::pow(vars[EPSI_VAR(t)], 2);
-      cost += CppAD::pow(vars[V_VAR(t)] - ref_v, 2);
+    const double W_cte = 1500.0;
+    const double W_epsi = 1500.0;
+    const double W_v = 1.0;
+    const double W_delta = 10.0;
+    const double W_a = 10.0;
+    const double W_ddelta = 150.0;
+    const double W_da = 15.0;
+
+    for (int i = 0; i < kN; ++i) {
+      const auto cte = vars[CTE_VAR(i)];
+      const auto epsi = vars[EPSI_VAR(i)];
+      const auto v = vars[V_VAR(i)] - ref_v;
+      cost += (W_cte * cte * cte + W_epsi * epsi * epsi + W_v * v * v);
     }
 
-    // Minimize the use of actuators.
-    for (int t = 0; t < kN - 1; t++) {
-      cost += CppAD::pow(vars[DELTA_VAR(t)], 2);
-      cost += CppAD::pow(vars[A_VAR(t)], 2);
+    for (int i = 0; i < kN - 1; ++i) {
+      const auto delta = vars[DELTA_VAR(i)];
+      const auto a = vars[A_VAR(i)];
+      cost += (W_delta * delta * delta + W_a * a * a);
     }
 
-    // Minimize the value gap between sequential actuations.
-    for (int t = 0; t < kN - 2; t++) {
-      cost += CppAD::pow(vars[DELTA_VAR(t + 1)] - vars[DELTA_VAR(t)], 2);
-      cost += CppAD::pow(vars[A_VAR(t + 1)] - vars[A_VAR(t)], 2);
+    for (int i = 0; i < kN - 2; ++i) {
+      const auto ddelta = vars[DELTA_VAR(i + 1)] - vars[DELTA_VAR(i)];
+      const auto da = vars[A_VAR(i + 1)] - vars[A_VAR(i)];
+      cost += (W_ddelta * ddelta * ddelta + W_da * da * da);
     }
 
     return cost;
@@ -97,6 +105,8 @@ class FG_eval {
     fg[1 + EPSI_VAR(0)] = vars[EPSI_VAR(0)];
 
 
+    State<AD<double>> state_t;
+    State<AD<double>> state_t_plus_1;
     for (int t = 0; t < kN - 1; t++) {
       State<AD<double>> state_t(vars[X_VAR(t)],
 				vars[Y_VAR(t)],
@@ -114,6 +124,14 @@ class FG_eval {
 				       vars[CTE_VAR(t + 1)],
 				       vars[EPSI_VAR(t + 1)]);
 
+      // calculate y desired and psi desired
+      const auto y_des = poly3eval(coeffs_, state_t.x_);
+      const auto psi_des = CppAD::atan(dfpoly3(coeffs_, state_t.x_));
+      const auto cte = y_des - state_t.y_;
+      const auto epsi = state_t.psi_ - psi_des;
+      state_t.cte_ = cte;
+      state_t.epsi_ = epsi;
+
       State<AD<double>> eval_t_plus_1;
       calc_state_t_plus_1(state_t, delta, a, kDt, eval_t_plus_1);
 
@@ -130,8 +148,42 @@ class FG_eval {
 //
 // MPC class definition implementation.
 //
-MPC::MPC() {}
-MPC::~MPC() {}
+MPC::MPC()
+  : vars_(kNumberOfVars),
+    vars_lowerbound_(kNumberOfVars),
+    vars_upperbound_(kNumberOfVars),
+    constraints_lowerbound_(kNumberOfConstraints),
+    constraints_upperbound_(kNumberOfConstraints) {
+
+
+  // Set lower and upper limits for variables.
+  for (int i = 0; i < DELTA_VAR(0); i++) {
+    vars_lowerbound_[i] = -1.0e10;
+    vars_upperbound_[i] = 1.0e10;
+  }
+
+  // The upper and lower limits of delta are set to -25 and 25
+  // degrees (values in radians).
+  // NOTE: Feel free to change this to something else.
+  for (int i = DELTA_VAR(0); i < A_VAR(0); i++) {
+    vars_lowerbound_[i] = -0.75;
+    vars_upperbound_[i] = 0.75;
+  }
+
+  // Acceleration/decceleration upper and lower limits.
+  // NOTE: Feel free to change this to something else.
+  for (int i = A_VAR(0); i < vars_.size(); i++) {
+    vars_lowerbound_[i] = -0.5;
+    vars_upperbound_[i] = 1.0;
+  }
+
+  // Lower and upper limits for the constraints
+  // Should be 0 besides initial state.
+  for (int i = 0; i < constraints_lowerbound_.size(); i++) {
+    constraints_lowerbound_[i] = 0;
+    constraints_upperbound_[i] = 0;
+  }
+}
 
 /*
  * state is the "current" state
@@ -139,65 +191,42 @@ MPC::~MPC() {}
  */
 void MPC::Solve(const Eigen::VectorXd &state, const Eigen::VectorXd &coeffs) {
   bool ok = true;
-  size_t i;
   typedef CPPAD_TESTVECTOR(double) Dvector;
 
-  const double x = state[kStateX];
-  const double y = state[kStateY];
-  const double psi = state[kStatePsi];
-  const double v = state[kStateV];
-  const double cte = state[kStateCte];
-  const double epsi = state[kStateEpsi];
+  const double x0 = state[kStateX];
+  const double y0 = state[kStateY];
+  const double psi0 = state[kStatePsi];
+  const double v0 = state[kStateV];
+  const double cte0 = state[kStateCte];
+  const double epsi0 = state[kStateEpsi];
 
   // Initial value of the independent variables.
   // SHOULD BE 0 besides initial state.
-  Dvector vars(kNumberOfVars);
-  for (int i = 0; i < vars.size(); i++) {
-    vars[i] = 0;
+  for (int i = 0; i < vars_.size(); i++) {
+    vars_[i] = 0;
   }
 
-  Dvector vars_lowerbound(kNumberOfVars);
-  Dvector vars_upperbound(kNumberOfVars);
-  // TODO: Set lower and upper limits for variables.
+  // Initial state
+  vars_[X_VAR(0)] = x0;
+  vars_[Y_VAR(0)] = y0;
+  vars_[PSI_VAR(0)] = psi0;
+  vars_[V_VAR(0)] = v0;
+  vars_[CTE_VAR(0)] = cte0;
+  vars_[EPSI_VAR(0)] = epsi0;
 
-  // The upper and lower limits of delta are set to -25 and 25
-  // degrees (values in radians).
-  // NOTE: Feel free to change this to something else.
-  for (int i = DELTA_VAR(0); i < A_VAR(0); i++) {
-    vars_lowerbound[i] = -0.75;
-    vars_upperbound[i] = 0.75;
-  }
+  constraints_lowerbound_[X_VAR(0)] = x0;
+  constraints_lowerbound_[Y_VAR(0)] = y0;
+  constraints_lowerbound_[PSI_VAR(0)] = psi0;
+  constraints_lowerbound_[V_VAR(0)] = v0;
+  constraints_lowerbound_[CTE_VAR(0)] = cte0;
+  constraints_lowerbound_[EPSI_VAR(0)] = epsi0;
 
-  // Acceleration/decceleration upper and lower limits.
-  // NOTE: Feel free to change this to something else.
-  for (int i = A_VAR(0); i < vars.size(); i++) {
-    vars_lowerbound[i] = -0.5;
-    vars_upperbound[i] = 1.0;
-  }
-
-  // Lower and upper limits for the constraints
-  // Should be 0 besides initial state.
-  Dvector constraints_lowerbound(kNumberOfConstraints);
-  Dvector constraints_upperbound(kNumberOfConstraints);
-  assert(constraints_lowerbound.size() == constraints_upperbound.size());
-  for (int i = 0; i < constraints_lowerbound.size(); i++) {
-    constraints_lowerbound[i] = 0;
-    constraints_upperbound[i] = 0;
-  }
-
-  constraints_lowerbound[X_VAR(0)] = x;
-  constraints_lowerbound[Y_VAR(0)] = y;
-  constraints_lowerbound[PSI_VAR(0)] = psi;
-  constraints_lowerbound[V_VAR(0)] = v;
-  constraints_lowerbound[CTE_VAR(0)] = cte;
-  constraints_lowerbound[EPSI_VAR(0)] = epsi;
-
-  constraints_upperbound[X_VAR(0)] = x;
-  constraints_upperbound[Y_VAR(0)] = y;
-  constraints_upperbound[PSI_VAR(0)] = psi;
-  constraints_upperbound[V_VAR(0)] = v;
-  constraints_upperbound[CTE_VAR(0)] = cte;
-  constraints_upperbound[EPSI_VAR(0)] = epsi;
+  constraints_upperbound_[X_VAR(0)] = x0;
+  constraints_upperbound_[Y_VAR(0)] = y0;
+  constraints_upperbound_[PSI_VAR(0)] = psi0;
+  constraints_upperbound_[V_VAR(0)] = v0;
+  constraints_upperbound_[CTE_VAR(0)] = cte0;
+  constraints_upperbound_[EPSI_VAR(0)] = epsi0;
 
 
   // object that computes objective and constraints
@@ -219,28 +248,30 @@ void MPC::Solve(const Eigen::VectorXd &state, const Eigen::VectorXd &coeffs) {
   options += "Sparse  true        reverse\n";
   // NOTE: Currently the solver has a maximum time limit of 0.5 seconds.
   // Change this as you see fit.
-  options += "Numeric max_cpu_time          0.5\n";
+  options += "Numeric max_cpu_time          10.5\n";
 
   // place to return solution
   CppAD::ipopt::solve_result<Dvector> solution;
 
   // solve the problem
   CppAD::ipopt::solve<Dvector, FG_eval>(
-      options, vars, vars_lowerbound, vars_upperbound, constraints_lowerbound,
-      constraints_upperbound, fg_eval, solution);
+      options,
+      vars_,
+      vars_lowerbound_, vars_upperbound_,
+      constraints_lowerbound_, constraints_upperbound_,
+      fg_eval,
+      solution);
 
   // Check some of the solution values
   ok &= solution.status == CppAD::ipopt::solve_result<Dvector>::success;
   if (! ok) {
     std::cerr << "unable to find solution (terminated with code 42)" << std::endl;
-    exit(42);
+    // exit(42);
   }
 
   // Cost
   auto cost = solution.obj_value;
   std::cout << "Cost " << cost << std::endl;
-
-  std::cout << "resuuulting" << std::endl;
 
   steering_angle_ = solution.x[DELTA_VAR(0)];
   throttle_ = solution.x[A_VAR(0)];
@@ -252,6 +283,4 @@ void MPC::Solve(const Eigen::VectorXd &state, const Eigen::VectorXd &coeffs) {
     xs_.push_back(solution.x[X_VAR(t + 1)]);
     ys_.push_back(solution.x[Y_VAR(t + 1)]);
   }
-
-  std::cout << "finished" << std::endl;
 }
