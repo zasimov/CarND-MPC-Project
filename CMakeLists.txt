@@ -4,12 +4,12 @@ cmake_minimum_required (VERSION 3.5)
 
 # -g allows for gdb debugging
 # turn on -03 for best performance
-add_definitions(-std=c++11 -O3)
+add_definitions(-std=c++11 -g)
 
 # set(CXX_FLAGS "-Wall")
 set(CMAKE_CXX_FLAGS "${CXX_FLAGS}")
 
-set(sources src/MPC.cpp src/main.cpp)
+set(sources src/kinematic_model.cpp src/MPC.cpp src/main.cpp)
 
 set(UWS_LIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/uWebSockets)
 
