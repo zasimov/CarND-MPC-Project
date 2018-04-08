@@ -1,23 +1,23 @@
 # The Model
 
-The model includes a state vector, actuator outputs and equations to
-predict state based on current state and current actuator outputs.
+The model includes a state vector, actuator outputs and the equations to
+predict a state based on the "current" state and the "current" actuator outputs.
 
-State vector is
+The state vector is
 
-  * x - the vehicle's x coordinate
-  * y - the vehicle's y coordinate
-  * psi - the vehicle's orientation angle
-  * velocity - the vehicle's velocity
-  * cte - the cross-track error
-  * epsi - the psi error
+  * `x` - the vehicle's x coordinate
+  * `y` - the vehicle's y coordinate
+  * `psi` - the vehicle's orientation angle
+  * `velocity` - the vehicle's velocity
+  * `cte` - the cross-track error
+  * `epsi` - the psi error
 
-Actuators are
+The actuators are
 
-  * delta - the steering angle
-  * a - the acceleration (throttle)
+  * `delta` - the steering angle
+  * `a` - the acceleration (throttle)
 
-Equations:
+The update equations:
 
     x(t+1) = x(t) + v(t) * cos(psi(t)) * dt
     y(t+1) = y(t) + v(t) * sin(ps(t0i) * dt
@@ -37,34 +37,31 @@ Equations:
 
 	f is a fitted poly
 
-The equations are implemented in `kinematic_model.h`
+The update equations are implemented in `kinematic_model.h`
 
 
 # Timestep Length and Elapsed Duration
 
-`N` chosen as `10` and `dt` chosen as `0.1`. These means that the
-controller uses the horizon in `1` second to build control
-trajectory. I think 1 second is enough. `dt` was chosen the same as
+The chosen value of `N` is `10` and the chosen value of `dt` is `0.1`.
+The effect is that the controller uses `1` second horizon to build control
+trajectory. I think `1` second is enough. `dt` was chosen the same as
 the latency of actuators.
-
-`N` defines the depth of horizon (how many states we want to predict)
-`dt` defines how much time is between predicted states.
 
 I tried
 
-  * N=5, dt=0.1 - the car gets pulled away from a track
-  * N=20, dt=0.1 - there is no improvements over N=10, but much more computations
+  * N=5, dt=0.1 - the car gets pulled away from the track
+  * N=20, dt=0.1 - there are no improvements over N=10, just much more computations
 
-You can change `N` and `dt` in in `config.h`.
+You can change `N` and `dt` in `config.h`.
 
 
 # Polynomial fitting
 
-The waypoints were transformed to vehicle coordinate system (see
-`main.cpp`). It is useful because the vehicle can be used as the
-origin (0, 0).
+The waypoints were transformed to the vehicle coordinate system (see
+`main.cpp`, line 180). It is useful because the position of the
+vehicle can be used as the origin (0, 0).
 
 
 # Latency
 
-Controller uses "delayed" state to find control trajectory. See `main.cpp` line 136.
+Controller uses the "delayed" state to find the control trajectory. See `main.cpp`, line 136.
