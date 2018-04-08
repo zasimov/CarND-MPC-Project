@@ -17,9 +17,6 @@ const int kNumberOfVars = kStateDim * kN + kActuatorCount * (kN - 1);
 const int kNumberOfConstraints = kStateDim * kN;
 
 
-const double ref_v = 70;
-
-
 // helpers to work with vars
 
 enum {
@@ -58,31 +55,23 @@ class FG_eval {
   inline AD<double> cost(const ADvector &vars) {
     AD<double> cost = 0;
 
-    const double W_cte = 1500.0;
-    const double W_epsi = 1500.0;
-    const double W_v = 1.0;
-    const double W_delta = 10.0;
-    const double W_a = 10.0;
-    const double W_ddelta = 150.0;
-    const double W_da = 15.0;
-
     for (int i = 0; i < kN; ++i) {
       const auto cte = vars[CTE_VAR(i)];
       const auto epsi = vars[EPSI_VAR(i)];
-      const auto v = vars[V_VAR(i)] - ref_v;
-      cost += (W_cte * cte * cte + W_epsi * epsi * epsi + W_v * v * v);
+      const auto v = vars[V_VAR(i)] - kMaxSpeed;
+      cost += kWcte * cte * cte + kWepsi * epsi * epsi + kWv * v * v;
     }
 
     for (int i = 0; i < kN - 1; ++i) {
       const auto delta = vars[DELTA_VAR(i)];
       const auto a = vars[A_VAR(i)];
-      cost += (W_delta * delta * delta + W_a * a * a);
+      cost += kWdelta * delta * delta + kWa * a * a;
     }
 
     for (int i = 0; i < kN - 2; ++i) {
       const auto ddelta = vars[DELTA_VAR(i + 1)] - vars[DELTA_VAR(i)];
       const auto da = vars[A_VAR(i + 1)] - vars[A_VAR(i)];
-      cost += (W_ddelta * ddelta * ddelta + W_da * da * da);
+      cost += kWddelta * ddelta * ddelta + kWda * da * da;
     }
 
     return cost;
