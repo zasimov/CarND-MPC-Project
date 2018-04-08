@@ -40,57 +40,41 @@ enum {
   kStateEpsi = 5
 };
 
-template <typename D>
-struct State {
-  D x_;
-  D y_;
-  D psi_;
-  D v_;
-  D cte_;
-  D epsi_;
-
-  State() {
-    // I don't care about unitialized variables =)
-  }
-
-  State(D x, D y, D psi, D v, D cte, D epsi)
-    : x_(x), y_(y), psi_(psi), v_(v), cte_(cte), epsi_(epsi) {
-  }
-};
-
 /*
  * Calculate state(t+1) using state(t);
  */
 template <typename D>
-inline void calc_state_t_plus_1(const State<D> &t,
-			 const D delta,
-			 const D a,
-			 const D dt,
-			 State<D> &t_plus_1) {
-  const auto x = t.x_;
-  const auto y = t.y_;
-  const auto psi = t.psi_;
-  const auto v = t.v_;
-  const auto cte = t.cte_;
-  const auto epsi = t.epsi_;
+inline void calc_state_t_plus_1(
+				// input
+				const D x0,
+				const D y0,
+				const D psi0,
+				const D v0,
+				const D cte0,
+				const D epsi0,
+				// control
+				const D delta,
+				const D a,
+				const D dt,
+				// output
+				D &x1,
+				D &y1,
+				D &psi1,
+				D &v1,
+				D &cte1,
+				D &epsi1) {
 
-  const auto vlf = v / Lf;
-  const auto vdt = v * dt;
+  const auto vlf = v0 / Lf;
+  const auto vdt = v0 * dt;
   const auto ddt = (-delta) * dt;
 
-  t_plus_1.x_ = x + CppAD::cos(psi) * vdt;
-  t_plus_1.y_ = y + CppAD::sin(psi) * vdt;
-  t_plus_1.psi_ = psi + vlf * ddt;
-  t_plus_1.v_ = v + a * dt;
-  t_plus_1.cte_ = cte + CppAD::sin(epsi) * vdt;
-  t_plus_1.epsi_ = epsi + vlf * ddt;
+  x1 = x0 + CppAD::cos(psi0) * vdt;
+  y1 = y0 + CppAD::sin(psi0) * vdt;
+  psi1 = psi0 + vlf * ddt;
+  v1 = v0 + a * dt;
+  cte1 = cte0 + CppAD::sin(epsi0) * vdt;
+  epsi1 = epsi0 + vlf * ddt;
 }
-
-
-void calc_state_t_plus_1(Eigen::VectorXd &state_t,
-			 const double delta,
-			 const double a,
-			 const double dt);
 
 /*
  * dfpoly3 calculates a derivate of polynom of degree 3 in a point x

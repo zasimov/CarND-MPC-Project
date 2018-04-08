@@ -9,7 +9,7 @@ add_definitions(-std=c++11 -O3)
 # set(CXX_FLAGS "-Wall")
 set(CMAKE_CXX_FLAGS "${CXX_FLAGS}")
 
-set(sources src/kinematic_model.cpp src/MPC.cpp src/main.cpp)
+set(sources src/MPC.cpp src/main.cpp)
 
 set(UWS_LIB_PATH ${CMAKE_CURRENT_SOURCE_DIR}/uWebSockets)
 

@@ -126,12 +126,15 @@ int main() {
 	  const double cte = coeffs[0] - 0.0;
 	  const double epsi = 0.0 - atan(coeffs[1]); // 0.0 - f'(0.0)
 
-	  // Solve
+	  // Calculate "delayed" state
 	  Eigen::VectorXd state(kStateDim);
-	  state << 0.0, 0.0, 0.0, v, cte, epsi;
+	  double x0, y0, psi0, v0, cte0, epsi0;
 
-	  // calculate (t+1) state using kinematic model (apply delta)
-	  calc_state_t_plus_1(state, delta, a, 0.1);
+	  // calculate delayed (t+1) state using kinematic model
+	  calc_state_t_plus_1(/* input */   0.0, 0.0, 0.0, v, cte, epsi,
+			      /* control */ delta, a, 0.1,
+			      /* output */  x0, y0, psi0, v0, cte0, epsi0);
+	  state << x0, y0, psi0, v0, cte0, epsi0;
 	  std::cout << "Current state:" << state.transpose() << std::endl;
 
 	  mpc.Solve(state, coeffs);

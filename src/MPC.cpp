@@ -94,8 +94,6 @@ class FG_eval {
     // Any additions to the cost should be added to `fg[0]`.
     fg[0] = cost(vars);
 
-    // Define constraints
-
     // Fill current state
     fg[1 + X_VAR(0)] = vars[X_VAR(0)];
     fg[1 + Y_VAR(0)] = vars[Y_VAR(0)];
@@ -104,43 +102,41 @@ class FG_eval {
     fg[1 + CTE_VAR(0)] = vars[CTE_VAR(0)];
     fg[1 + EPSI_VAR(0)] = vars[EPSI_VAR(0)];
 
-
-    State<AD<double>> state_t;
-    State<AD<double>> state_t_plus_1;
     for (int t = 0; t < kN - 1; t++) {
-      State<AD<double>> state_t(vars[X_VAR(t)],
-				vars[Y_VAR(t)],
-				vars[PSI_VAR(t)],
-				vars[V_VAR(t)],
-				vars[CTE_VAR(t)],
-				vars[EPSI_VAR(t)]);
-      const AD<double> delta = vars[DELTA_VAR(t)];
-      const AD<double> a = vars[A_VAR(t)];
+      const auto x_t = vars[X_VAR(t)];
+      const auto y_t = vars[Y_VAR(t)];
+      const auto psi_t = vars[PSI_VAR(t)];
+      const auto v_t = vars[V_VAR(t)];
+      const auto cte_t = vars[CTE_VAR(t)];
+      const auto epsi_t = vars[EPSI_VAR(t)];
+      const auto delta = vars[DELTA_VAR(t)];
+      const auto a = vars[A_VAR(t)];
 
-      State<AD<double>> state_t_plus_1(vars[X_VAR(t + 1)],
-				       vars[Y_VAR(t + 1)],
-				       vars[PSI_VAR(t + 1)],
-				       vars[V_VAR(t + 1)],
-				       vars[CTE_VAR(t + 1)],
-				       vars[EPSI_VAR(t + 1)]);
+      const auto x_t1 = vars[X_VAR(t + 1)];
+      const auto y_t1 = vars[Y_VAR(t + 1)];
+      const auto psi_t1 = vars[PSI_VAR(t + 1)];
+      const auto v_t1 = vars[V_VAR(t + 1)];
+      const auto cte_t1 = vars[CTE_VAR(t + 1)];
+      const auto epsi_t1 = vars[EPSI_VAR(t + 1)];
 
       // calculate y desired and psi desired
-      const auto y_des = poly3eval(coeffs_, state_t.x_);
-      const auto psi_des = CppAD::atan(dfpoly3(coeffs_, state_t.x_));
-      const auto cte = y_des - state_t.y_;
-      const auto epsi = state_t.psi_ - psi_des;
-      state_t.cte_ = cte;
-      state_t.epsi_ = epsi;
+      const auto y_des = poly3eval(coeffs_, x_t);
+      const auto psi_des = CppAD::atan(dfpoly3(coeffs_, x_t));
 
-      State<AD<double>> eval_t_plus_1;
-      calc_state_t_plus_1(state_t, delta, a, kDt, eval_t_plus_1);
+      const auto cte = y_des - y_t;
+      const auto epsi = psi_t - psi_des;
 
-      fg[1 + X_VAR(t + 1)] = (state_t_plus_1.x_ - eval_t_plus_1.x_);
-      fg[1 + Y_VAR(t + 1)] = (state_t_plus_1.y_ - eval_t_plus_1.y_);
-      fg[1 + V_VAR(t + 1)] = (state_t_plus_1.v_ - eval_t_plus_1.v_);
-      fg[1 + PSI_VAR(t + 1)] = (state_t_plus_1.psi_ - eval_t_plus_1.psi_);
-      fg[1 + CTE_VAR(t + 1)] = (state_t_plus_1.cte_ - eval_t_plus_1.cte_);
-      fg[1 + EPSI_VAR(t + 1)] = (state_t_plus_1.epsi_ - eval_t_plus_1.epsi_);
+      AD<double> e_x_t1, e_y_t1, e_psi_t1, e_v_t1, e_cte_t1, e_epsi_t1;
+      calc_state_t_plus_1(x_t, y_t, psi_t, v_t, cte, epsi,
+			  delta, a, kDt,
+			  e_x_t1, e_y_t1, e_psi_t1, e_v_t1, e_cte_t1, e_epsi_t1);
+
+      fg[1 + X_VAR(t + 1)] = (x_t1 - e_x_t1);
+      fg[1 + Y_VAR(t + 1)] = (y_t1 - e_y_t1);
+      fg[1 + PSI_VAR(t + 1)] = (psi_t1 - e_psi_t1);
+      fg[1 + V_VAR(t + 1)] = (v_t1 - e_v_t1);
+      fg[1 + CTE_VAR(t + 1)] = (cte_t1 - e_cte_t1);
+      fg[1 + EPSI_VAR(t + 1)] = (epsi_t1 - e_epsi_t1);
     }
   }
 };
