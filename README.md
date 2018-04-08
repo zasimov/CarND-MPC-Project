@@ -106,3 +106,14 @@ still be compilable with cmake and make./
 
 ## How to write a README
 A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
+
+# How to build using AWS EC2 Ubuntu 16.04.3
+
+    sudo apt-get update && sudo apt-get install -y cmake g++ make libssl-dev libuv1-dev git gfortran cppad
+	git clone https://github.com/zasimov/CarND-MPC-Project
+    wget https://www.coin-or.org/download/source/Ipopt/Ipopt-3.12.9.tgz
+	tar zxvf Ipopt-3.12.9.tgz
+    cd CarND-MPC-Project
+	sudo ./install_ipopt.sh ~/Ipopt-3.12.9
+	git submodule update --init --recursive
+	mkdir build && cd build && cmake .. && make
