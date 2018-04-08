@@ -8,6 +8,7 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "MPC.h"
 #include "json.hpp"
+#include "kinematic_model.h"
 
 // for convenience
 using json = nlohmann::json;
@@ -33,7 +34,7 @@ string hasData(string s) {
 }
 
 // Evaluate a polynomial.
-double polyeval(Eigen::VectorXd coeffs, double x) {
+double polyeval(const Eigen::VectorXd &coeffs, double x) {
   double result = 0.0;
   for (int i = 0; i < coeffs.size(); i++) {
     result += coeffs[i] * pow(x, i);
@@ -87,46 +88,82 @@ int main() {
           // j[1] is the data JSON object
           vector<double> ptsx = j[1]["ptsx"];
           vector<double> ptsy = j[1]["ptsy"];
-          double px = j[1]["x"];
-          double py = j[1]["y"];
-          double psi = j[1]["psi"];
-          double v = j[1]["speed"];
+          const double px = j[1]["x"];
+          const double py = j[1]["y"];
+          const double psi = j[1]["psi"];
+          const double v = j[1]["speed"];
+	  const double delta = j[1]["steering_angle"];
+	  const double a = j[1]["throttle"];
 
-          /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
-          double steer_value;
-          double throttle_value;
+	  assert(ptsx.size() == ptsy.size());
+	  const int waypoint_count = ptsx.size();
+
+	  const double cospsi = cos(-psi);
+	  const double sinpsi = sin(-psi);
+
+	  std::cout << "convert to vehicle" << std::endl;
+	  /*
+	   * Convert ptsx and ptsy to the vehicle coordinate system
+	   */
+	  Eigen::VectorXd xs(waypoint_count);
+	  Eigen::VectorXd ys(waypoint_count);
+	  for (int i = 0; i < waypoint_count; i++) {
+	    const double x = ptsx[i] - px;
+	    const double y = ptsy[i] - py;
+	    // rotate (x, y) using psi (see Rotation Matrix in Wiki)
+	    xs[i] = x * cospsi - y * sinpsi;
+	    ys[i] = x * sinpsi + y * cospsi;
+	  }
+
+	  auto coeffs = polyfit(xs, ys, 3);
+
+	  // Calculate initial cross track error and orientation error values.
+	  // coeffs is a vector <a0, a1, a2, a3> where
+	  //     f(x) = a0 * x^0 + a1 * x^1 + a2 * x^2 + a3 * x^3
+	  //  a0 is a distance between <px, py> and "first" point
+	  //  of fitted poly
+	  // to calculate epsi we need to calculate 0.0 - f'(0.0):
+	  const double cte = coeffs[0] - 0.0;
+	  const double epsi = 0.0 - atan(coeffs[1]); // 0.0 - f'(0.0)
+
+	  // Calculate "delayed" state
+	  Eigen::VectorXd state(kStateDim);
+	  double x0, y0, psi0, v0, cte0, epsi0;
+
+	  // calculate delayed (t+1) state using kinematic model
+	  calc_state_t_plus_1(/* input */   0.0, 0.0, 0.0, v, cte, epsi,
+			      /* control */ delta, a, 0.1,
+			      /* output */  x0, y0, psi0, v0, cte0, epsi0);
+	  state << x0, y0, psi0, v0, cte0, epsi0;
+	  std::cout << "Current state:" << state.transpose() << std::endl;
+
+	  mpc.Solve(state, coeffs);
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
-          msgJson["steering_angle"] = steer_value;
-          msgJson["throttle"] = throttle_value;
+          msgJson["steering_angle"] = mpc.steering_angle_;
+          msgJson["throttle"] = mpc.throttle_;
 
-          //Display the MPC predicted trajectory 
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
-
-          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
-          // the points in the simulator are connected by a Green line
-
-          msgJson["mpc_x"] = mpc_x_vals;
-          msgJson["mpc_y"] = mpc_y_vals;
+          msgJson["mpc_x"] = mpc.xs_;
+          msgJson["mpc_y"] = mpc.ys_;
 
           //Display the waypoints/reference line
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
+          vector<double> next_x_vals(waypoint_count);
+          vector<double> next_y_vals(waypoint_count);
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
+	  const double grid_step = 5.0;
+	  for (int i = 0; i < waypoint_count; i++) {
+	    const double x = i * grid_step;
+	    const double y = polyeval(coeffs, x);
+	    next_x_vals[i] = x;
+	    next_y_vals[i] = y;
+	  }
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
-
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
