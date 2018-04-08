@@ -115,9 +115,7 @@ int main() {
 	    ys[i] = x * sinpsi + y * cospsi;
 	  }
 
-	  std::cout << "polyfit" << std::endl;
 	  auto coeffs = polyfit(xs, ys, 3);
-	  std::cout << "polyfit:" << coeffs.size() << std::endl;
 
 	  // Calculate initial cross track error and orientation error values.
 	  // coeffs is a vector <a0, a1, a2, a3> where
@@ -125,7 +123,7 @@ int main() {
 	  //  a0 is a distance between <px, py> and "first" point
 	  //  of fitted poly
 	  // to calculate epsi we need to calculate 0.0 - f'(0.0):
-	  const double cte = 0.0 - coeffs[0];
+	  const double cte = coeffs[0] - 0.0;
 	  const double epsi = 0.0 - atan(coeffs[1]); // 0.0 - f'(0.0)
 
 	  // Solve
@@ -136,9 +134,7 @@ int main() {
 	  calc_state_t_plus_1(state, delta, a, 0.1);
 	  std::cout << "Current state:" << state.transpose() << std::endl;
 
-	  std::cout << "solve" << std::endl;
 	  mpc.Solve(state, coeffs);
-	  std::cout << "solved" << std::endl;
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.

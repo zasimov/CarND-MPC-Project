@@ -166,15 +166,15 @@ MPC::MPC()
   // degrees (values in radians).
   // NOTE: Feel free to change this to something else.
   for (int i = DELTA_VAR(0); i < A_VAR(0); i++) {
-    vars_lowerbound_[i] = -0.75;
-    vars_upperbound_[i] = 0.75;
+    vars_lowerbound_[i] = kMinDelta;
+    vars_upperbound_[i] = kMaxDelta;
   }
 
   // Acceleration/decceleration upper and lower limits.
   // NOTE: Feel free to change this to something else.
   for (int i = A_VAR(0); i < vars_.size(); i++) {
-    vars_lowerbound_[i] = -0.5;
-    vars_upperbound_[i] = 1.0;
+    vars_lowerbound_[i] = kMinThrottle;
+    vars_upperbound_[i] = kMaxThrottle;
   }
 
   // Lower and upper limits for the constraints
@@ -248,7 +248,7 @@ void MPC::Solve(const Eigen::VectorXd &state, const Eigen::VectorXd &coeffs) {
   options += "Sparse  true        reverse\n";
   // NOTE: Currently the solver has a maximum time limit of 0.5 seconds.
   // Change this as you see fit.
-  options += "Numeric max_cpu_time          20.5\n";
+  options += "Numeric max_cpu_time          " + kMaxCpuTime + "\n";
 
   // place to return solution
   CppAD::ipopt::solve_result<Dvector> solution;
