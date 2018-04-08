@@ -248,7 +248,7 @@ void MPC::Solve(const Eigen::VectorXd &state, const Eigen::VectorXd &coeffs) {
   options += "Sparse  true        reverse\n";
   // NOTE: Currently the solver has a maximum time limit of 0.5 seconds.
   // Change this as you see fit.
-  options += "Numeric max_cpu_time          10.5\n";
+  options += "Numeric max_cpu_time          20.5\n";
 
   // place to return solution
   CppAD::ipopt::solve_result<Dvector> solution;
@@ -266,7 +266,7 @@ void MPC::Solve(const Eigen::VectorXd &state, const Eigen::VectorXd &coeffs) {
   ok &= solution.status == CppAD::ipopt::solve_result<Dvector>::success;
   if (! ok) {
     std::cerr << "unable to find solution (terminated with code 42)" << std::endl;
-    // exit(42);
+    exit(42);
   }
 
   // Cost

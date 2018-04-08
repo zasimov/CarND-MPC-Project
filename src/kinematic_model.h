@@ -97,7 +97,7 @@ void calc_state_t_plus_1(Eigen::VectorXd &state_t,
  */
 template <typename D>
 inline D dfpoly3(const Eigen::VectorXd &coeffs, D x) {
-  return 3.0 * coeffs[3] + x * x + 2.0 * coeffs[2] * x + coeffs[1];
+  return 3.0 * coeffs[3] * x * x + 2.0 * coeffs[2] * x + coeffs[1];
 }
 
 /*
